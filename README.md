@@ -7,7 +7,7 @@ A sleek and responsive portfolio website built with **Next.js 15**, **React 18**
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38B2AC)
 
-🔗 **[Live Demo](https://v0-modern-react-portfolio-pied.vercel.app/)**
+🔗 **[Live Demo](https://nithin-gandrathi.vercel.app/)**
 
 ---
 
