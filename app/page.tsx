@@ -14,7 +14,6 @@ import {
   Mail,
   MapPin,
   ExternalLink,
-  Download,
   Code,
   Database,
   Globe,
@@ -40,16 +39,24 @@ export default function Portfolio() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState("home")
   const [theme, setTheme] = useState("light")
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [targetSection, setTargetSection] = useState("")
+  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set())
 
-  // Refs for project images scrolling effect
+  // Refs for animations and scrolling
   const projectCardsRefs = useRef<(HTMLDivElement | null)[]>([])
+  const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({})
+  const observerRef = useRef<IntersectionObserver | null>(null)
 
   useEffect(() => {
     // Check for saved theme preference or default to 'light'
     const savedTheme = localStorage.getItem("theme") || "light"
     setTheme(savedTheme)
     document.documentElement.classList.toggle("dark", savedTheme === "dark")
+
+    // Set loaded state for initial animations
+    setTimeout(() => setIsLoaded(true), 100)
   }, [])
 
   const toggleTheme = () => {
@@ -58,6 +65,40 @@ export default function Portfolio() {
     localStorage.setItem("theme", newTheme)
     document.documentElement.classList.toggle("dark", newTheme === "dark")
   }
+
+  // Intersection Observer for smooth section reveals
+  useEffect(() => {
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const sectionId = entry.target.id
+          if (entry.isIntersecting) {
+            setVisibleSections((prev) => new Set([...prev, sectionId]))
+            entry.target.classList.add("section-visible")
+          }
+        })
+      },
+      {
+        threshold: 0.1,
+        rootMargin: "-10% 0px -10% 0px",
+      },
+    )
+
+    // Observe all sections
+    const sections = ["home", "about", "skills", "experience", "projects", "certifications", "contact"]
+    sections.forEach((sectionId) => {
+      const element = document.getElementById(sectionId)
+      if (element && observerRef.current) {
+        observerRef.current.observe(element)
+      }
+    })
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -77,17 +118,16 @@ export default function Portfolio() {
         }
       }
 
-      // Parallax effect for project cards
-      projectCardsRefs.current.forEach((card, index) => {
+      // Smooth parallax effect for project cards
+      projectCardsRefs.current.forEach((card) => {
         if (card) {
           const rect = card.getBoundingClientRect()
           const isVisible = rect.top < window.innerHeight && rect.bottom >= 0
 
           if (isVisible) {
             const scrollFactor = (window.innerHeight - rect.top) / (window.innerHeight + rect.height)
-            const translateY = Math.max(0, Math.min(20, scrollFactor * 20))
-            const scale = 1 + Math.min(0.05, scrollFactor * 0.05)
-            card.style.transform = `translateY(${-translateY}px) scale(${scale})`
+            const translateY = Math.max(0, Math.min(10, scrollFactor * 10))
+            card.style.transform = `translateY(${-translateY}px)`
           }
         }
       })
@@ -98,16 +138,50 @@ export default function Portfolio() {
   }, [])
 
   const scrollToSection = (sectionId: string) => {
+    if (isTransitioning) return
+
+    setIsTransitioning(true)
+    setTargetSection(sectionId)
+    setIsMenuOpen(false)
+
     const element = document.getElementById(sectionId)
     if (element) {
-      element.scrollIntoView({ behavior: "smooth" })
+      // Smooth scroll with custom easing
+      const startPosition = window.pageYOffset
+      const targetPosition = element.offsetTop - 80
+      const distance = targetPosition - startPosition
+      const duration = Math.min(Math.abs(distance) / 3, 1000)
+
+      let start = 0
+
+      const easeInOutQuart = (t: number) => {
+        return t < 0.5 ? 8 * t * t * t * t : 1 - 8 * --t * t * t * t
+      }
+
+      const animateScroll = (timestamp: number) => {
+        if (!start) start = timestamp
+        const progress = Math.min((timestamp - start) / duration, 1)
+        const ease = easeInOutQuart(progress)
+
+        window.scrollTo(0, startPosition + distance * ease)
+
+        if (progress < 1) {
+          requestAnimationFrame(animateScroll)
+        } else {
+          setTimeout(() => {
+            setIsTransitioning(false)
+            setTargetSection("")
+          }, 100)
+        }
+      }
+
+      requestAnimationFrame(animateScroll)
     }
-    setIsMenuOpen(false)
   }
 
   // Logo components for skills
   const PythonLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#3776AB"
@@ -122,7 +196,7 @@ export default function Portfolio() {
   )
 
   const JavaLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#007396"
@@ -133,7 +207,7 @@ export default function Portfolio() {
   )
 
   const JavaScriptLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#F7DF1E"
@@ -143,19 +217,19 @@ export default function Portfolio() {
     </div>
   )
 
-  const CLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+  const TypeScriptLogo = () => (
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
-          fill="#A8B9CC"
-          d="M16.5921 9.1962s-.354-3.298-3.627-3.39c-3.2741-.09-4.9552 2.474-4.9552 6.14 0 3.6651 1.858 6.5972 5.0451 6.5972 3.184 0 3.5381-3.665 3.5381-3.665l6.1041.365s.36 3.31-2.196 5.836c-2.552 2.5241-5.6901 2.9371-7.8762 2.9201-2.19-.017-5.2261.034-8.1602-2.97-2.938-3.0101-3.436-5.9302-3.436-8.8002 0-2.8701.556-6.6702 4.047-9.5502C7.444.72 9.849 0 12.254 0c10.0422 0 10.7172 9.2602 10.7172 9.2602z"
+          fill="#3178C6"
+          d="M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.093 5.093 0 0 0-.717-.26 5.453 5.453 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.104.156.252.304.443.444s.423.276.696.41c.273.135.582.274.926.416.47.197.892.407 1.266.628.374.222.695.473.963.753.268.279.472.598.614.957.142.359.214.776.214 1.253 0 .657-.125 1.21-.373 1.656a3.033 3.033 0 0 1-1.012 1.085 4.38 4.38 0 0 1-1.487.596c-.566.12-1.163.18-1.79.18a9.916 9.916 0 0 1-1.84-.164 5.544 5.544 0 0 1-1.512-.493v-2.63a5.033 5.033 0 0 0 3.237 1.2c.333 0 .624-.03.872-.09.249-.06.456-.144.623-.25.166-.108.29-.234.373-.38a1.023 1.023 0 0 0-.074-1.089 2.12 2.12 0 0 0-.537-.5 5.597 5.597 0 0 0-.807-.444 27.72 27.72 0 0 0-1.007-.436c-.918-.383-1.602-.852-2.053-1.405-.45-.553-.676-1.222-.676-2.005 0-.614.123-1.141.369-1.582.246-.441.58-.804 1.004-1.089a4.494 4.494 0 0 1 1.47-.629 7.536 7.536 0 0 1 1.77-.201zm-15.113.188h9.563v2.166H9.506v9.646H6.789v-9.646H3.375z"
         />
       </svg>
     </div>
   )
 
   const HTMLLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#E34F26"
@@ -166,7 +240,7 @@ export default function Portfolio() {
   )
 
   const CSSLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#1572B6"
@@ -177,7 +251,7 @@ export default function Portfolio() {
   )
 
   const ReactLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#61DAFB"
@@ -188,18 +262,18 @@ export default function Portfolio() {
   )
 
   const NextJSLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill={theme === "light" ? "#000000" : "#FFFFFF"}
-          d="M11.5725 0c-.1763 0-.3098.0013-.3584.0067-.0516.0053-.2159.021-.3636.0328-3.4088.3073-6.6017 2.1463-8.624 4.9728C1.1004 6.584.3802 8.3666.1082 10.255c-.0962.659-.108.8537-.108 1.7474s.012 1.0884.108 1.7476c.652 4.506 3.8591 8.2919 8.2087 9.6945.7789.2511 1.6.4223 2.5337.5255.3636.04 1.9354.04 2.299 0 1.6117-.1783 2.9772-.577 4.3237-1.2643.2065-.1056.2464-.1337.2183-.1573-.0188-.0139-.8987-1.1938-1.9543-2.62l-1.919-2.592-2.4047-3.5583c-1.3231-1.9564-2.4117-3.556-2.4211-3.556-.0094-.0026-.0187 1.5787-.0187 3.509 0 3.3802-.0093 3.5162-.0963 3.596-.0474.0424-.1124.0827-.1973.1231-.1124.0507-.1973.0694-.3248.0694h-.1973l-.1124-.0507c-.1317-.0694-.1691-.1231-.1691-.233l.001-10.3102.0093-.0955c.0245-.2274.1156-.3178.3345-.3411.1692-.0176.2085-.0094.3636.0751.104.0558 5.877 8.2641 6.7577 9.5335.011.0176 1.4787-2.1757 3.2623-4.8667 1.7835-2.691 3.2493-4.8901 3.2585-4.8987.0372-.0372.0877-.0558.1692-.0558.0887 0 .1224.0094.1973.0445.1156.0507.1529.1288.1529.3003v10.3009c0 .1101-.0329.1972-.0982.2634-.0653.0694-.1529.1101-.2745.1101-.1205 0-.2647-.0407-.3296-.0955-.0573-.0481-.0796-.1056-.0796-.2323v-8.4946c0-.0437-.0187-.0437-.0467.0094-.0746.1288-5.4338 8.2755-5.5968 8.5042-.0963.1337-.1642.1783-.2948.1783-.1154 0-.1903-.0446-.2856-.1783-.0746-.1101-5.4805-8.2921-5.5504-8.4289-.0187-.0437-.0467-.0437-.0467 0v8.4946c0 .1267-.0329.1972-.0982.2323-.0653.0481-.209.0955-.3296.0955-.1217 0-.2092-.0407-.2745-.1101-.0653-.0662-.0982-.1533-.0982-.2634V4.8758c0-.1719.0372-.2511.1529-.3003.0749-.0351.1086-.0445.1973-.0445.0815 0 .132.0186.1692.0558.0093.0086 1.4647 2.2082 3.2482 4.8987 1.7835 2.691 3.2585 4.8843 3.2678 4.8843.0092 0 .0187-.0176.0187-.0176 0-.0093 1.4927-2.1782 3.3184-4.8192C17.7558 6.0507 19.2671 3.8521 19.2671 3.8521c.0467-.0662.1317-.1337.2159-.1524.0841-.0186.2554-.0176.3306 0 .1317.0351.2135.1056.2554.2168.0187.0481.0281.4097.0281 4.0375 0 2.1782-.0094 3.9924-.0187 4.0315-.0467.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.0289-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-4.4189 0-3.9566-.0654-4.0198-.0373-.0355-.0933-.0445-.1504-.024-.0654.0214-5.5504 8.2921-5.5968 8.4102-.0467.1101-.1224.1719-.2554.1972-.0841.0176-.2554.0176-.3306 0-.1317-.0253-.2135-.0871-.2554-.1972-.0467-.1181-5.5314-8.3888-5.5968-8.4102-.0571-.0214-.113-.0115-.1504.024-.0654.0632-.0654-.4007-.0654 4.0198 0 2.1782-.0093 3.9924-.0187 4.0315-.0466.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.028-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-3.6278.0094-3.9894.0281-4.0375.0419-.1112.1237-.1817.2554-.2168.0752-.0176.2465-.0186.3306 0 .0842.0187.1692.0862.2159.1524 0 0 1.5113 2.1986 3.3371 4.8758 1.8257 2.6771 3.3184 4.8758 3.3184 4.8758.0093 0 .0187-.0176.0187-.0176 0-.0093 1.4834-2.2082 3.2585-4.8843 1.7835-2.6905 3.2389-4.8901 3.2482-4.8987.0372-.0372.0877-.0558.1692-.0558.0887 0 .1224.0094.1973.0445.1156.0492.1529.1284.1529.3003v10.3009c0 .1101-.0329.1972-.0982.2634-.0653.0694-.1529.1101-.2745.1101-.1205 0-.2647-.0407-.3296-.0955-.0573-.0481-.0796-.1056-.0796-.2323v-8.4946c0-.0437-.0187-.0437-.0467.0094-.0746.1288-5.4338 8.2755-5.5968 8.5042-.0963.1337-.1642.1783-.2948.1783-.1154 0-.1903-.0446-.2856-.1783-.0746-.1101-5.4805-8.2921-5.5504-8.4289-.0187-.0437-.0467-.0437-.0467 0v8.4946c0 .1267-.0329.1972-.0982.2323-.0653.0481-.209.0955-.3296.0955-.1217 0-.2092-.0407-.2745-.1101-.0653-.0662-.0982-.1533-.0982-.2634V4.8758c0-.1719.0372-.2511.1529-.3003.0749-.0351.1086-.0445.1973-.0445.0815 0 .132.0186.1692.0558.0093.0086 1.4647 2.2082 3.2482 4.8987 1.7835 2.691 3.2585 4.8843 3.2678 4.8843.0092 0 .0187-.0176.0187-.0176 0-.0093 1.4927-2.1782 3.3184-4.8192C17.7558 6.0507 19.2671 3.8521 19.2671 3.8521c.0467-.0662.1317-.1337.2159-.1524.0841-.0186.2554-.0176.3306 0 .1317.0351.2135.1056.2554.2168.0187.0481.0281.4097.0281 4.0375 0 2.1782-.0094 3.9924-.0187 4.0315-.0467.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.0289-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-4.4189 0-3.9566-.0654-4.0198-.0373-.0355-.0933-.0445-.1504-.024-.0654.0214-5.5504 8.2921-5.5968 8.4102-.0467.1101-.1224.1719-.2554.1972-.0841.0176-.2554.0176-.3306 0-.1317-.0253-.2135-.0871-.2554-.1972-.0467-.1181-5.5314-8.3888-5.5968-8.4102-.0571-.0214-.113-.0115-.1504.024-.0654.0632-.0654-.4007-.0654 4.0198 0 2.1782-.0093 3.9924-.0187 4.0315-.0466.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.028-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-3.6278.0094-3.9894.0281-4.0375.0419-.1112.1237-.1817.2554-.2168.0752-.0176.2465-.0186.3306 0 .0842.0187.1692.0862.2159.1524 0 0 1.5113 2.1986 3.3371 4.8758 1.8257 2.6771 3.3184 4.8758 3.3184 4.8758.0093 0 .0187-.0176.0187-.0176 0-.0093 1.4834-2.2082 3.2585-4.8843 1.7835-2.6905 3.2389-4.8901 3.2482-4.8987.0372-.0372.0877-.0558.1692-.0558.0887 0 .1224.0094.1973.0445.1156.0492.1529.1284.1529.3003v10.3009c0 .1101-.0329.1972-.0982.2634-.0653.0694-.1529.1101-.2745.1101-.1205 0-.2647-.0407-.3296-.0955-.0573-.0481-.0796-.1056-.0796-.2323v-8.4946c0-.0437-.0187-.0437-.0467.0094-.0746.1288-5.4338 8.2755-5.5968 8.5042-.0963.1337-.1642.1783-.2948.1783-.1154 0-.1903-.0446-.2856-.1783-.0746-.1101-5.4805-8.2921-5.5504-8.4289-.0187-.0437-.0467-.0437-.0467 0v8.4946c0 .1267-.0329.1972-.0982.2323-.0653.0481-.209.0955-.3296.0955-.1217 0-.2092-.0407-.2745-.1101-.0653-.0662-.0982-.1533-.0982-.2634V4.8758c0-.1719.0372-.2511.1529-.3003.0749-.0351.1086-.0445.1973-.0445.0815 0 .132.0186.1692.0558.0093.0086 1.4647 2.2082 3.2482 4.8987 1.7835 2.691 3.2585 4.8843 3.2678 4.8843.0092 0 .0187-.0176.0187-.0176 0-.0093 1.4927-2.1782 3.3184-4.8192C17.7558 6.0507 19.2671 3.8521 19.2671 3.8521c.0467-.0662.1317-.1337.2159-.1524.0841-.0186.2554-.0176.3306 0 .1317.0351.2135.1056.2554.2168.0187.0481.0281.4097.0281 4.0375 0 2.1782-.0094 3.9924-.0187 4.0315-.0467.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.0289-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-4.4189 0-3.9566-.0654-4.0198-.0373-.0355-.0933-.0445-.1504-.024-.0654.0214-5.5504 8.2921-5.5968 8.4102-.0467.1101-.1224.1719-.2554.1972-.0841.0176-.2554.0176-.3306 0-.1317-.0253-.2135-.0871-.2554-.1972-.0467-.1181-5.5314-8.3888-5.5968-8.4102-.0571-.0214-.113-.0115-.1504.024-.0654.0632-.0654-.4007-.0654 4.0198 0 2.1782-.0093 3.9924-.0187 4.0315-.0466.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.028-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-3.6278.0094-3.9894.0281-4.0375.0419-.1112.1237-.1817.2554-.2168.0752-.0176.2465-.0186.3306 0 .0842.0187.1692.0862.2159.1524 0 0 1.5113 2.1986 3.3371 4.8758 1.8257 2.6771 3.3184 4.8758 3.3184 4.8758.0093 0 .0187-.0176.0187-.0176 0-.0093 1.4834-2.2082 3.2585-4.8843 1.7835-2.6905 3.2389-4.8901 3.2482-4.8987.0372-.0372.0877-.0558.1692-.0558.0887 0 .1224.0094.1973.0445.1156.0492.1529.1284.1529.3003v10.3009c0 .1101-.0329.1972-.0982.2634-.0653.0694-.1529.1101-.2745.1101-.1205 0-.2647-.0407-.3296-.0955-.0573-.0481-.0796-.1056-.0796-.2323v-8.4946c0-.0437-.0187-.0437-.0467.0094-.0746.1288-5.4338 8.2755-5.5968 8.5042-.0963.1337-.1642.1783-.2948.1783-.1154 0-.1903-.0446-.2856-.1783-.0746-.1101-5.4805-8.2921-5.5504-8.4289-.0187-.0437-.0467-.0437-.0467 0v8.4946c0 .1267-.0329.1972-.0982.2323-.0653.0481-.209.0955-.3296.0955-.1217 0-.2092-.0407-.2745-.1101-.0653-.0662-.0982-.1533-.0982-.2634V4.8758c0-.1719.0372-.2511.1529-.3003.0749-.0351.1086-.0445.1973-.0445.0815 0 .132.0186.1692.0558.0093.0086 1.4647 2.2082 3.2482 4.8987 1.7835 2.691 3.2585 4.8843 3.2678 4.8843.0092 0 .0187-.0176.0187-.0176 0-.0093 1.4927-2.1782 3.3184-4.8192C17.7558 6.0507 19.2671 3.8521 19.2671 3.8521"
+          d="M11.5725 0c-.1763 0-.3098.0013-.3584.0067-.0516.0053-.2159.021-.3636.0328-3.4088.3073-6.6017 2.1463-8.624 4.9728C1.1004 6.584.3802 8.3666.1082 10.255c-.0962.659-.108.8537-.108 1.7474s.012 1.0884.108 1.7476c.652 4.506 3.8591 8.2919 8.2087 9.6945.7789.2511 1.6.4223 2.5337.5255.3636.04 1.9354.04 2.299 0 1.6117-.1783 2.9772-.577 4.3237-1.2643.2065-.1056.2464-.1337.2183-.1573-.0188-.0139-.8987-1.1938-1.9543-2.62l-1.919-2.592-2.4047-3.5583c-1.3231-1.9564-2.4117-3.556-2.4211-3.556-.0094-.0026-.0187 1.5787-.0187 3.509 0 3.3802-.0093 3.5162-.0963 3.596-.0474.0424-.1124.0827-.1973.1231-.1124.0507-.1973.0694-.3248.0694h-.1973l-.1124-.0507c-.1317-.0694-.1691-.1231-.1691-.233l.001-10.3102.0093-.0955c.0245-.2274.1156-.3178.3345-.3411.1692-.0176.2085-.0094.3636.0751.104.0558 5.877 8.2641 6.7577 9.5335.011.0176 1.4787-2.1757 3.2623-4.8667 1.7835-2.691 3.2493-4.8901 3.2585-4.8987.0372-.0372.0877-.0558.1692-.0558.0887 0 .1224.0094.1973.0445.1156.0507.1529.1288.1529.3003v10.3009c0 .1101-.0329.1972-.0982.2634-.0653.0694-.1529.1101-.2745.1101-.1205 0-.2647-.0407-.3296-.0955-.0573-.0481-.0796-.1056-.0796-.2323v-8.4946c0-.0437-.0187-.0437-.0467.0094-.0746.1288-5.4338 8.2755-5.5968 8.5042-.0963.1337-.1642.1783-.2948.1783-.1154 0-.1903-.0446-.2856-.1783-.0746-.1101-5.4805-8.2921-5.5504-8.4289-.0187-.0437-.0467-.0437-.0467 0v8.4946c0 .1267-.0329.1972-.0982.2323-.0653.0481-.209.0955-.3296.0955-.1217 0-.2092-.0407-.2745-.1101-.0653-.0662-.0982-.1533-.0982-.2634V4.8758c0-.1719.0372-.2511.1529-.3003.0749-.0351.1086-.0445.1973-.0445.0815 0 .132.0186.1692.0558.0093.0086 1.4647 2.2082 3.2482 4.8987 1.7835 2.691 3.2585 4.8843 3.2678 4.8843.0092 0 .0187-.0176.0187-.0176 0-.0093 1.4927-2.1782 3.3184-4.8192C17.7558 6.0507 19.2671 3.8521 19.2671 3.8521c.0467-.0662.1317-.1337.2159-.1524.0841-.0186.2554-.0176.3306 0 .1317.0351.2135.1056.2554.2168.0187.0481.0281.4097.0281 4.0375 0 2.1782-.0094 3.9924-.0187 4.0315-.0467.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.0289-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-4.4189 0-3.9566-.0654-4.0198-.0373-.0355-.0933-.0445-.1504-.024-.0654.0214-5.5504 8.2921-5.5968 8.4102-.0467.1101-.1224.1719-.2554.1972-.0841.0176-.2554.0176-.3306 0-.1317-.0253-.2135-.0871-.2554-.1972-.0467-.1181-5.5314-8.3888-5.5968-8.4102-.0571-.0214-.113-.0115-.1504.024-.0654.0632-.0654-.4007-.0654 4.0198 0 2.1782-.0093 3.9924-.0187 4.0315-.0466.2087-.2135.3642-.4376.3922-.0841.0094-.2554.0094-.3306 0-.2241-.028-.3901-.1835-.4376-.3922-.0093-.0391-.0187-1.8533-.0187-4.0315 0-3.6278.0094-3.9894.0281-4.0375.0419-.1112.1237-.1817.2554-.2168.0752-.0176.2465-.0186.3306 0 .0842.0187.1692.0862.2159.1524 0 0 1.5113 2.1986 3.3371 4.8758 1.8257 2.6771 3.3184 4.8758 3.3184 4.8758.0093 0 .0187-.0176.0187-.0176 0-.0093 1.4834-2.2082 3.2585-4.8843 1.7835-2.6905 3.2389-4.8901 3.2482-4.8987.0372-.0372.0877-.0558.1692-.0558.0887 0 .1224.0094.1973.0445.1156.0492.1529.1284.1529.3003v10.3009c0 .1101-.0329.1972-.0982.2634-.0653.0694-.1529.1101-.2745.1101-.1205 0-.2647-.0407-.3296-.0955-.0573-.0481-.0796-.1056-.0796-.2323v-8.4946c0-.0437-.0187-.0437-.0467.0094-.0746.1288-5.4338 8.2755-5.5968 8.5042-.0963.1337-.1642.1783-.2948.1783-.1154 0-.1903-.0446-.2856-.1783-.0746-.1101-5.4805-8.2921-5.5504-8.4289-.0187-.0437-.0467-.0437-.0467 0v8.4946c0 .1267-.0329.1972-.0982.2323-.0653.0481-.209.0955-.3296.0955-.1217 0-.2092-.0407-.2745-.1101-.0653-.0662-.0982-.1533-.0982-.2634V4.8758c0-.1719.0372-.2511.1529-.3003.0749-.0351.1086-.0445.1973-.0445.0815 0 .132.0186.1692.0558.0093.0086 1.4647 2.2082 3.2482 4.8987 1.7835 2.691 3.2585 4.8843 3.2678 4.8843.0092 0 .0187-.0176.0187-.0176 0-.0093 1.4927-2.1782 3.3184-4.8192C17.7558 6.0507 19.2671 3.8521 19.2671 3.8521"
         />
       </svg>
     </div>
   )
 
   const NodeJSLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#339933"
@@ -210,7 +284,7 @@ export default function Portfolio() {
   )
 
   const TailwindLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#06B6D4"
@@ -221,7 +295,7 @@ export default function Portfolio() {
   )
 
   const MongoDBLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <svg viewBox="0 0 24 24" className="w-6 h-6">
         <path
           fill="#47A248"
@@ -232,25 +306,25 @@ export default function Portfolio() {
   )
 
   const AzureLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <Image src="/azure-logo.png" alt="Microsoft Azure" width={24} height={24} className="w-6 h-6 object-contain" />
     </div>
   )
 
   const AWSLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <Image src="/aws-logo.png" alt="AWS" width={24} height={24} className="w-6 h-6 object-contain" />
     </div>
   )
 
   const GoogleLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <Image src="/google-logo.png" alt="Google" width={24} height={24} className="w-6 h-6 object-contain" />
     </div>
   )
 
   const CiscoLogo = () => (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1">
+    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-1 transition-all duration-300 hover:scale-110">
       <Image src="/cisco-logo.png" alt="Cisco" width={24} height={24} className="w-6 h-6 object-contain" />
     </div>
   )
@@ -263,7 +337,7 @@ export default function Portfolio() {
         { name: "Python", logo: <PythonLogo /> },
         { name: "Java", logo: <JavaLogo /> },
         { name: "JavaScript (ES6+)", logo: <JavaScriptLogo /> },
-        { name: "C", logo: <CLogo /> },
+        { name: "TypeScript", logo: <TypeScriptLogo /> },
         { name: "HTML5", logo: <HTMLLogo /> },
         { name: "CSS3", logo: <CSSLogo /> },
       ],
@@ -337,7 +411,7 @@ export default function Portfolio() {
       live: "#",
       year: "2024",
       category: "Full-Stack Application",
-      status: "Under Development", // Added status indicator
+      status: "Under Development",
     },
     {
       title: "Portfolio Website",
@@ -349,7 +423,7 @@ export default function Portfolio() {
       live: "#",
       year: "2024",
       category: "Web Application",
-      status: "Deployed", // Added status indicator
+      status: "Deployed",
     },
   ]
 
@@ -418,57 +492,77 @@ export default function Portfolio() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-primary-200 dark:from-slate-900 dark:via-primary-950 dark:to-slate-800 transition-all duration-500">
+    <div
+      className={`min-h-screen bg-gradient-to-br from-primary-50 via-primary-100 to-primary-200 dark:from-slate-900 dark:via-primary-950 dark:to-slate-800 transition-all duration-700 ${isLoaded ? "animate-fade-in" : "opacity-0"}`}
+    >
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl z-50 border-b border-primary-200/50 dark:border-primary-800/50 shadow-lg transition-all duration-300">
+      <nav className="fixed top-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl z-50 border-b border-primary-200/50 dark:border-primary-800/50 shadow-lg transition-all duration-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-800 via-primary-600 to-primary-500">
+            <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-800 via-primary-600 to-primary-500 transition-all duration-500 hover:scale-105">
               Nithin Gandrathi
             </div>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
-              {["home", "about", "skills", "experience", "projects", "certifications", "contact"].map((item) => (
+              {["home", "about", "skills", "experience", "projects", "certifications", "contact"].map((item, index) => (
                 <button
                   key={item}
                   onClick={() => scrollToSection(item)}
-                  className={`capitalize transition-all duration-300 hover:text-primary-600 hover:scale-105 ${
+                  disabled={isTransitioning}
+                  className={`capitalize transition-all duration-300 hover:text-primary-600 relative ${
                     activeSection === item ? "text-primary-600 font-semibold" : "text-slate-600 dark:text-slate-300"
+                  } ${isTransitioning ? "opacity-50 cursor-not-allowed" : ""} ${
+                    targetSection === item ? "animate-pulse" : ""
                   }`}
+                  style={{ transitionDelay: `${index * 50}ms` }}
                 >
                   {item}
+                  {activeSection === item && (
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-primary-600 rounded-full"></div>
+                  )}
                 </button>
               ))}
 
               {/* Theme Toggle Button */}
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-lg bg-primary-100 dark:bg-primary-800 hover:bg-primary-200 dark:hover:bg-primary-700 transition-all duration-300 hover:scale-110"
+                disabled={isTransitioning}
+                className={`p-2 rounded-lg bg-primary-100 dark:bg-primary-800 hover:bg-primary-200 dark:hover:bg-primary-700 transition-all duration-300 hover:scale-110 ${
+                  isTransitioning ? "opacity-50 cursor-not-allowed" : ""
+                }`}
                 aria-label="Toggle theme"
               >
                 {theme === "light" ? (
-                  <Moon className="w-5 h-5 text-primary-700 dark:text-primary-300" />
+                  <Moon className="w-5 h-5 text-primary-700 dark:text-primary-300 transition-transform duration-300" />
                 ) : (
-                  <Sun className="w-5 h-5 text-primary-700 dark:text-primary-300" />
+                  <Sun className="w-5 h-5 text-primary-700 dark:text-primary-300 transition-transform duration-300" />
                 )}
               </button>
             </div>
 
             {/* Mobile Menu Button */}
-            <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            <button
+              className="md:hidden transition-transform duration-300 hover:scale-110"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? (
+                <X className="w-6 h-6 transition-transform duration-300" />
+              ) : (
+                <Menu className="w-6 h-6 transition-transform duration-300" />
+              )}
             </button>
           </div>
 
           {/* Mobile Navigation */}
           {isMenuOpen && (
             <div className="md:hidden py-4 border-t border-primary-200 dark:border-primary-700 animate-fade-in">
-              {["home", "about", "skills", "experience", "projects", "certifications", "contact"].map((item) => (
+              {["home", "about", "skills", "experience", "projects", "certifications", "contact"].map((item, index) => (
                 <button
                   key={item}
                   onClick={() => scrollToSection(item)}
-                  className="block w-full text-left py-3 capitalize text-slate-600 dark:text-slate-300 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-800 rounded-lg transition-all duration-200"
+                  className="block w-full text-left py-3 capitalize text-slate-600 dark:text-slate-300 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-800 rounded-lg transition-all duration-300"
+                  style={{ animationDelay: `${index * 100}ms` }}
                 >
                   {item}
                 </button>
@@ -478,16 +572,16 @@ export default function Portfolio() {
               <div className="pt-4 border-t border-primary-200 dark:border-primary-700 mt-4">
                 <button
                   onClick={toggleTheme}
-                  className="flex items-center space-x-3 w-full py-3 text-slate-600 dark:text-slate-300 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-800 rounded-lg transition-all duration-200"
+                  className="flex items-center space-x-3 w-full py-3 text-slate-600 dark:text-slate-300 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-800 rounded-lg transition-all duration-300"
                 >
                   {theme === "light" ? (
                     <>
-                      <Moon className="w-5 h-5" />
+                      <Moon className="w-5 h-5 transition-transform duration-300" />
                       <span>Dark Mode</span>
                     </>
                   ) : (
                     <>
-                      <Sun className="w-5 h-5" />
+                      <Sun className="w-5 h-5 transition-transform duration-300" />
                       <span>Light Mode</span>
                     </>
                   )}
@@ -499,16 +593,22 @@ export default function Portfolio() {
       </nav>
 
       {/* Hero Section */}
-      <section id="home" className="min-h-screen flex items-center justify-center pt-16 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-600/10 via-primary-500/10 to-primary-400/10"></div>
+      <section
+        id="home"
+        ref={(el) => {
+          sectionRefs.current.home = el
+        }}
+        className="min-h-screen flex items-center justify-center pt-16 relative overflow-hidden section-reveal"
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-600/5 via-primary-500/5 to-primary-400/5"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <div className="animate-fade-in-up">
+          <div className="space-y-8">
             <div className="mb-8">
-              <div className="w-32 h-32 mx-auto mb-8 bg-gradient-to-br from-primary-800 via-primary-600 to-primary-400 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-2xl hover:scale-110 transition-transform duration-500">
+              <div className="w-32 h-32 mx-auto mb-8 bg-gradient-to-br from-primary-800 via-primary-600 to-primary-400 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-2xl hover:scale-105 transition-all duration-500 animate-float">
                 NG
               </div>
             </div>
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 via-primary-600 to-primary-400">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 via-primary-600 to-primary-400 animate-gradient-x">
               Nithin Gandrathi
             </h1>
             <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-4 max-w-3xl mx-auto">
@@ -531,31 +631,23 @@ export default function Portfolio() {
                 <Briefcase className="w-4 h-4 mr-2" />
                 View My Work
               </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="border-primary-600 text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900 transform hover:scale-105 transition-all duration-300 border-2"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download CV
-              </Button>
             </div>
             <div className="flex justify-center space-x-6">
               <Link
                 href="https://github.com/nithin-2707"
-                className="text-slate-600 hover:text-primary-600 transform hover:scale-125 transition-all duration-300"
+                className="text-slate-600 hover:text-primary-600 transform hover:scale-110 transition-all duration-300"
               >
                 <Github className="w-8 h-8" />
               </Link>
               <Link
                 href="https://www.linkedin.com/in/nithin-gandrathi-8627a6272/"
-                className="text-slate-600 hover:text-primary-600 transform hover:scale-125 transition-all duration-300"
+                className="text-slate-600 hover:text-primary-600 transform hover:scale-110 transition-all duration-300"
               >
                 <Linkedin className="w-8 h-8" />
               </Link>
               <Link
                 href="mailto:nithingandrathi2707@gmail.com"
-                className="text-slate-600 hover:text-primary-600 transform hover:scale-125 transition-all duration-300"
+                className="text-slate-600 hover:text-primary-600 transform hover:scale-110 transition-all duration-300"
               >
                 <Mail className="w-8 h-8" />
               </Link>
@@ -570,11 +662,14 @@ export default function Portfolio() {
       {/* About Section */}
       <section
         id="about"
-        className="py-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-300"
+        ref={(el) => {
+          sectionRefs.current.about = el
+        }}
+        className="py-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-700 section-reveal"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500 animate-gradient-x">
               About Me
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
@@ -600,34 +695,34 @@ export default function Portfolio() {
                 environments.
               </p>
               <div className="grid grid-cols-2 gap-4 pt-6">
-                <div className="text-center p-6 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 rounded-xl border border-primary-200 dark:border-primary-700">
+                <div className="text-center p-6 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 rounded-xl border border-primary-200 dark:border-primary-700 transition-all duration-300 hover:scale-105 hover:shadow-lg">
                   <div className="text-3xl font-bold text-primary-600 mb-2">5+</div>
                   <div className="text-slate-600 dark:text-slate-300">Certifications</div>
                 </div>
-                <div className="text-center p-6 bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-800/20 dark:to-primary-700/20 rounded-xl border border-primary-300 dark:border-primary-600">
+                <div className="text-center p-6 bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-800/20 dark:to-primary-700/20 rounded-xl border border-primary-300 dark:border-primary-600 transition-all duration-300 hover:scale-105 hover:shadow-lg">
                   <div className="text-3xl font-bold text-primary-600 mb-2">2+</div>
                   <div className="text-slate-600 dark:text-slate-300">Major Projects</div>
                 </div>
               </div>
             </div>
             <div className="relative">
-              <div className="bg-gradient-to-br from-primary-800 via-primary-600 to-primary-400 rounded-2xl p-8 text-white shadow-2xl hover:scale-105 transition-transform duration-500">
+              <div className="bg-gradient-to-br from-primary-800 via-primary-600 to-primary-400 rounded-2xl p-8 text-white shadow-2xl hover:scale-105 transition-all duration-500 hover:shadow-3xl">
                 <div className="space-y-6">
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 transition-all duration-300 hover:translate-x-2">
                     <BookOpen className="w-8 h-8" />
                     <div>
                       <h3 className="text-xl font-bold">Education</h3>
                       <p className="text-primary-100">B.Tech CSE, VIT-AP University</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 transition-all duration-300 hover:translate-x-2">
                     <Users className="w-8 h-8" />
                     <div>
                       <h3 className="text-xl font-bold">Availability</h3>
                       <p className="text-primary-100">Remote Work Ready</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 transition-all duration-300 hover:translate-x-2">
                     <Zap className="w-8 h-8" />
                     <div>
                       <h3 className="text-xl font-bold">Start Date</h3>
@@ -644,11 +739,14 @@ export default function Portfolio() {
       {/* Skills Section */}
       <section
         id="skills"
-        className="py-20 bg-primary-50/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all duration-300"
+        ref={(el) => {
+          sectionRefs.current.skills = el
+        }}
+        className="py-20 bg-primary-50/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all duration-700 section-reveal"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500 animate-gradient-x">
               Skills & Technologies
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
@@ -660,24 +758,28 @@ export default function Portfolio() {
             {skillCategories.map((category, index) => (
               <Card
                 key={category.title}
-                className="hover:shadow-2xl transition-all duration-500 hover:-translate-y-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 group"
+                className="hover:shadow-xl transition-all duration-500 hover:-translate-y-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 group hover:scale-105"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
                 <CardContent className="p-6">
                   <div className="flex items-center mb-6">
                     <div
-                      className={`p-3 bg-gradient-to-r ${category.gradient} rounded-xl text-white mr-4 group-hover:scale-110 transition-transform duration-300`}
+                      className={`p-3 bg-gradient-to-r ${category.gradient} rounded-xl text-white mr-4 group-hover:scale-110 transition-all duration-300`}
                     >
                       {category.icon}
                     </div>
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">{category.title}</h3>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 transition-all duration-300 group-hover:text-primary-600">
+                      {category.title}
+                    </h3>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    {category.skills.map((skill) => (
+                    {category.skills.map((skill, skillIndex) => (
                       <div
                         key={skill.name}
-                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors duration-200"
+                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-300 hover:scale-105"
+                        style={{ transitionDelay: `${skillIndex * 50}ms` }}
                       >
-                        <span className="text-lg">{skill.logo}</span>
+                        <span className="text-lg transition-transform duration-300 hover:scale-110">{skill.logo}</span>
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{skill.name}</span>
                       </div>
                     ))}
@@ -692,11 +794,14 @@ export default function Portfolio() {
       {/* Experience Section */}
       <section
         id="experience"
-        className="py-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-300"
+        ref={(el) => {
+          sectionRefs.current.experience = el
+        }}
+        className="py-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-700 section-reveal"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500 animate-gradient-x">
               Experience & Expertise
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
@@ -708,14 +813,17 @@ export default function Portfolio() {
             {experiences.map((exp, index) => (
               <Card
                 key={index}
-                className="hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700"
+                className="hover:shadow-xl transition-all duration-500 hover:-translate-y-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 hover:scale-105"
+                style={{ animationDelay: `${index * 200}ms` }}
               >
                 <CardContent className="p-8">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
                     <div className="flex items-center space-x-4">
-                      <div className="text-4xl">{exp.logo}</div>
+                      <div className="text-4xl transition-transform duration-300 hover:scale-110">{exp.logo}</div>
                       <div>
-                        <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2">{exp.title}</h3>
+                        <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2 transition-all duration-300 hover:text-primary-600">
+                          {exp.title}
+                        </h3>
                         <div className="flex items-center text-primary-600 mb-2">
                           <Building className="w-5 h-5 mr-2" />
                           <span className="text-lg font-semibold">{exp.company}</span>
@@ -729,11 +837,12 @@ export default function Portfolio() {
                   </div>
                   <p className="text-slate-600 dark:text-slate-300 mb-6 leading-relaxed text-lg">{exp.description}</p>
                   <div className="flex flex-wrap gap-2">
-                    {exp.technologies.map((tech) => (
+                    {exp.technologies.map((tech, techIndex) => (
                       <Badge
                         key={tech}
                         variant="secondary"
-                        className="bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 dark:from-primary-900/30 dark:to-primary-800/30 dark:text-primary-200 px-3 py-1"
+                        className="bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 dark:from-primary-900/30 dark:to-primary-800/30 dark:text-primary-200 px-3 py-1 transition-all duration-300 hover:scale-105"
+                        style={{ animationDelay: `${techIndex * 100}ms` }}
                       >
                         {tech}
                       </Badge>
@@ -749,11 +858,14 @@ export default function Portfolio() {
       {/* Projects Section */}
       <section
         id="projects"
-        className="py-20 bg-primary-50/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all duration-300"
+        ref={(el) => {
+          sectionRefs.current.projects = el
+        }}
+        className="py-20 bg-primary-50/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all duration-700 section-reveal"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500 animate-gradient-x">
               Featured Projects
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
@@ -766,7 +878,8 @@ export default function Portfolio() {
               <Card
                 key={index}
                 ref={(el) => (projectCardsRefs.current[index] = el)}
-                className="group hover:shadow-2xl transition-all duration-500 hover:-translate-y-6 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 overflow-hidden"
+                className="group hover:shadow-xl transition-all duration-500 hover:-translate-y-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 overflow-hidden hover:scale-105"
+                style={{ animationDelay: `${index * 200}ms` }}
               >
                 <div className="relative overflow-hidden">
                   <Image
@@ -774,24 +887,24 @@ export default function Portfolio() {
                     alt={project.title}
                     width={500}
                     height={300}
-                    className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-500"
+                    className="w-full h-64 object-cover group-hover:scale-110 transition-all duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-primary-800/60 via-primary-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="absolute inset-0 bg-gradient-to-t from-primary-800/60 via-primary-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300" />
+                  <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
                     <Link
                       href={project.github}
-                      className="p-3 bg-white/90 rounded-full hover:bg-white transition-colors shadow-lg hover:scale-110 transform duration-200"
+                      className="p-3 bg-white/90 rounded-full hover:bg-white transition-all duration-300 shadow-lg hover:scale-110 transform"
                     >
                       <Github className="w-5 h-5" />
                     </Link>
                     <Link
                       href={project.live}
-                      className="p-3 bg-white/90 rounded-full hover:bg-white transition-colors shadow-lg hover:scale-110 transform duration-200"
+                      className="p-3 bg-white/90 rounded-full hover:bg-white transition-all duration-300 shadow-lg hover:scale-110 transform"
                     >
                       <ExternalLink className="w-5 h-5" />
                     </Link>
                   </div>
-                  <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0">
                     <Badge className="bg-white/90 text-slate-800 font-medium">
                       {project.year} • {project.category}
                     </Badge>
@@ -811,14 +924,17 @@ export default function Portfolio() {
                   </div>
                 </div>
                 <CardContent className="p-8">
-                  <h3 className="text-2xl font-bold mb-3 text-slate-800 dark:text-slate-200">{project.title}</h3>
+                  <h3 className="text-2xl font-bold mb-3 text-slate-800 dark:text-slate-200 transition-all duration-300 hover:text-primary-600">
+                    {project.title}
+                  </h3>
                   <p className="text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">{project.description}</p>
                   <div className="flex flex-wrap gap-2">
-                    {project.technologies.map((tech) => (
+                    {project.technologies.map((tech, techIndex) => (
                       <Badge
                         key={tech}
                         variant="outline"
-                        className="border-primary-300 text-primary-600 dark:border-primary-600 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                        className="border-primary-300 text-primary-600 dark:border-primary-600 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-300 hover:scale-105"
+                        style={{ animationDelay: `${techIndex * 100}ms` }}
                       >
                         {tech}
                       </Badge>
@@ -834,11 +950,14 @@ export default function Portfolio() {
       {/* Certifications Section */}
       <section
         id="certifications"
-        className="py-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-300"
+        ref={(el) => {
+          sectionRefs.current.certifications = el
+        }}
+        className="py-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm transition-all duration-700 section-reveal"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500 animate-gradient-x">
               Certifications & Achievements
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
@@ -850,17 +969,18 @@ export default function Portfolio() {
             {certifications.map((cert, index) => (
               <Card
                 key={index}
-                className="hover:shadow-2xl transition-all duration-500 hover:-translate-y-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 group"
+                className="hover:shadow-xl transition-all duration-500 hover:-translate-y-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 group hover:scale-105"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start mb-4">
                     <div
-                      className={`p-4 bg-gradient-to-r ${cert.color} rounded-xl text-white mr-4 group-hover:scale-110 transition-transform duration-300 shadow-lg`}
+                      className={`p-4 bg-gradient-to-r ${cert.color} rounded-xl text-white mr-4 group-hover:scale-110 transition-all duration-300 shadow-lg`}
                     >
                       {cert.logo}
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2 leading-tight">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2 leading-tight transition-all duration-300 hover:text-primary-600">
                         {cert.title}
                       </h3>
                       <p className="text-primary-600 dark:text-primary-400 font-semibold mb-2">{cert.issuer}</p>
@@ -870,7 +990,7 @@ export default function Portfolio() {
                       </div>
                     </div>
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 bg-primary-50 dark:bg-primary-900/20 p-2 rounded">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 bg-primary-50 dark:bg-primary-900/20 p-2 rounded transition-all duration-300 hover:bg-primary-100 dark:hover:bg-primary-800/30">
                     Credential ID: {cert.credentialId}
                   </div>
                 </CardContent>
@@ -883,11 +1003,14 @@ export default function Portfolio() {
       {/* Contact Section */}
       <section
         id="contact"
-        className="py-20 bg-primary-50/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all duration-300"
+        ref={(el) => {
+          sectionRefs.current.contact = el
+        }}
+        className="py-20 bg-primary-50/80 dark:bg-slate-900/80 backdrop-blur-sm transition-all duration-700 section-reveal"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-primary-800 to-primary-500 animate-gradient-x">
               Get In Touch
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
@@ -897,118 +1020,142 @@ export default function Portfolio() {
 
           <div className="grid md:grid-cols-2 gap-12">
             <div className="space-y-8">
-              <div className="flex items-center space-x-4 group">
-                <div className="p-4 bg-gradient-to-r from-primary-700 to-primary-500 rounded-xl text-white group-hover:scale-110 transition-transform duration-300 shadow-lg">
+              <div className="flex items-center space-x-4 group transition-all duration-300 hover:translate-x-2">
+                <div className="p-4 bg-gradient-to-r from-primary-700 to-primary-500 rounded-xl text-white group-hover:scale-110 transition-all duration-300 shadow-lg">
                   <Mail className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Email</h3>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 transition-all duration-300 group-hover:text-primary-600">
+                    Email
+                  </h3>
                   <p className="text-slate-600 dark:text-slate-300">nithingandrathi2707@gmail.com</p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-4 group">
-                <div className="p-4 bg-gradient-to-r from-primary-600 to-primary-400 rounded-xl text-white group-hover:scale-110 transition-transform duration-300 shadow-lg">
+              <div className="flex items-center space-x-4 group transition-all duration-300 hover:translate-x-2">
+                <div className="p-4 bg-gradient-to-r from-primary-600 to-primary-400 rounded-xl text-white group-hover:scale-110 transition-all duration-300 shadow-lg">
                   <MapPin className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Location</h3>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 transition-all duration-300 group-hover:text-primary-600">
+                    Location
+                  </h3>
                   <p className="text-slate-600 dark:text-slate-300">Hanamkonda, Telangana, India</p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-4 group">
-                <div className="p-4 bg-gradient-to-r from-primary-500 to-primary-300 rounded-xl text-white group-hover:scale-110 transition-transform duration-300 shadow-lg">
+              <div className="flex items-center space-x-4 group transition-all duration-300 hover:translate-x-2">
+                <div className="p-4 bg-gradient-to-r from-primary-500 to-primary-300 rounded-xl text-white group-hover:scale-110 transition-all duration-300 shadow-lg">
                   <Users className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Availability</h3>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 transition-all duration-300 group-hover:text-primary-600">
+                    Availability
+                  </h3>
                   <p className="text-slate-600 dark:text-slate-300">Remote Work • Immediate Start</p>
                 </div>
               </div>
 
               <div className="pt-8">
-                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-6">Connect With Me</h3>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-6 transition-all duration-300 hover:text-primary-600">
+                  Connect With Me
+                </h3>
                 <div className="flex space-x-4">
                   <Link
                     href="https://github.com/nithin-2707"
-                    className="p-4 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-primary-200 dark:border-primary-700"
+                    className="p-4 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-primary-200 dark:border-primary-700 hover:scale-110"
                   >
                     <Github className="w-6 h-6 text-slate-600 dark:text-slate-300" />
                   </Link>
                   <Link
                     href="https://www.linkedin.com/in/nithin-gandrathi-8627a6272/"
-                    className="p-4 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-primary-200 dark:border-primary-700"
+                    className="p-4 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-primary-200 dark:border-primary-700 hover:scale-110"
                   >
                     <Linkedin className="w-6 h-6 text-slate-600 dark:text-slate-300" />
                   </Link>
                   <Link
                     href="mailto:nithingandrathi2707@gmail.com"
-                    className="p-4 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-primary-200 dark:border-primary-700"
+                    className="p-4 bg-white dark:bg-slate-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-primary-200 dark:border-primary-700 hover:scale-110"
                   >
                     <Mail className="w-6 h-6 text-slate-600 dark:text-slate-300" />
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-primary-100 to-primary-200 dark:from-primary-900/20 dark:to-primary-800/20 p-6 rounded-xl border border-primary-300 dark:border-primary-600">
-                <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">Key Strengths</h4>
+              <div className="bg-gradient-to-r from-primary-100 to-primary-200 dark:from-primary-900/20 dark:to-primary-800/20 p-6 rounded-xl border border-primary-300 dark:border-primary-600 transition-all duration-300 hover:scale-105 hover:shadow-lg">
+                <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2 transition-all duration-300 hover:text-primary-600">
+                  Key Strengths
+                </h4>
                 <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
-                  <li>• Strong foundation in SDLC with practical application</li>
-                  <li>• Certified expertise in Microsoft Azure and AWS</li>
-                  <li>• Experience with remote development environments</li>
-                  <li>• Quick learner with excellent communication skills</li>
+                  <li className="transition-all duration-300 hover:translate-x-2 hover:text-primary-600">
+                    • Strong foundation in SDLC with practical application
+                  </li>
+                  <li className="transition-all duration-300 hover:translate-x-2 hover:text-primary-600">
+                    • Certified expertise in Microsoft Azure and AWS
+                  </li>
+                  <li className="transition-all duration-300 hover:translate-x-2 hover:text-primary-600">
+                    • Experience with remote development environments
+                  </li>
+                  <li className="transition-all duration-300 hover:translate-x-2 hover:text-primary-600">
+                    • Quick learner with excellent communication skills
+                  </li>
                 </ul>
               </div>
             </div>
 
-            <Card className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 shadow-xl">
+            <Card className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-primary-200 dark:border-primary-700 shadow-xl transition-all duration-500 hover:scale-105 hover:shadow-2xl">
               <CardContent className="p-8">
                 <form className="space-y-6">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 transition-all duration-300 hover:text-primary-600">
                         First Name
                       </label>
                       <Input
                         placeholder="John"
-                        className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50"
+                        className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50 transition-all duration-300 hover:scale-105 focus:scale-105"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 transition-all duration-300 hover:text-primary-600">
                         Last Name
                       </label>
                       <Input
                         placeholder="Doe"
-                        className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50"
+                        className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50 transition-all duration-300 hover:scale-105 focus:scale-105"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 transition-all duration-300 hover:text-primary-600">
+                      Email
+                    </label>
                     <Input
                       type="email"
                       placeholder="john@example.com"
-                      className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50"
+                      className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50 transition-all duration-300 hover:scale-105 focus:scale-105"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Subject</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 transition-all duration-300 hover:text-primary-600">
+                      Subject
+                    </label>
                     <Input
                       placeholder="Project Discussion"
-                      className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50"
+                      className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50 transition-all duration-300 hover:scale-105 focus:scale-105"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Message</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 transition-all duration-300 hover:text-primary-600">
+                      Message
+                    </label>
                     <Textarea
                       placeholder="Tell me about your project..."
                       rows={5}
-                      className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50"
+                      className="border-primary-300 dark:border-primary-600 focus:border-primary-500 focus:ring-primary-500 bg-white/50 dark:bg-slate-700/50 transition-all duration-300 hover:scale-105 focus:scale-105 resize-none"
                     />
                   </div>
 
@@ -1027,10 +1174,10 @@ export default function Portfolio() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gradient-to-r from-primary-800 via-primary-700 to-primary-600 text-white py-12">
+      <footer className="bg-gradient-to-r from-primary-800 via-primary-700 to-primary-600 text-white py-12 transition-all duration-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-200 to-primary-100 mb-4">
+            <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-200 to-primary-100 mb-4 transition-all duration-500 hover:scale-110 animate-gradient-x">
               Nithin Gandrathi
             </div>
             <p className="text-primary-200 mb-6">Software Development Engineer (Web) • Available for Remote Work</p>
